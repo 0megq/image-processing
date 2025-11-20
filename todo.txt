@@ -1,0 +1,2 @@
+- zoom in + pan
+- pixel value + snapped pixel value

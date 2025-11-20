@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import pandas as pd
+import tkinter as tk
+from PIL import Image, ImageTk
 from typing import List
 from pathlib import Path
 
@@ -222,23 +224,25 @@ data = {
 	"x4": [],
 }
 
-path: Path = Path('./images')
-files = [f for f in path.iterdir() if f.is_file()]
-files = files[0:1]
-# print(files)
+def run():
+	path: Path = Path('./images')
+	files = [f for f in path.iterdir() if f.is_file()]
+	files = files[0:1]
+	# print(files)
 
-for file in files:
-	image_points = analyze_image(str(file), file.name)
-	data["File Name"].append(file.name)
-	data["File Name"].append(file.name)
-	data["File Name"].append(file.name)
-	data["Tube"].append("Left")
-	data["Tube"].append("Middle")
-	data["Tube"].append("Right")
-	for points in image_points:
-		for i, point in enumerate(points):
-			data["x" + str(i + 1)].append(point[0] / scale_factor)
-			data["y" + str(i + 1)].append(point[1] / scale_factor)
+	for file in files:
+		image_points = analyze_image(str(file), file.name)
+		data["File Name"].append(file.name)
+		data["File Name"].append(file.name)
+		data["File Name"].append(file.name)
+		data["Tube"].append("Left")
+		data["Tube"].append("Middle")
+		data["Tube"].append("Right")
+		for points in image_points:
+			for i, point in enumerate(points):
+				data["x" + str(i + 1)].append(point[0] / scale_factor)
+				data["y" + str(i + 1)].append(point[1] / scale_factor)
 
-df = pd.DataFrame(data)
-df.to_csv('out.csv', index=False)
+	df = pd.DataFrame(data)
+	df.to_csv('out.csv', index=False)
+
