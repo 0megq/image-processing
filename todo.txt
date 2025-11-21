@@ -1,2 +1,4 @@
 - zoom in + pan
 - pixel value + snapped pixel value
+- gaussian blur before Canny
+- edge detection at high res, scale down, and reapply edge detection
