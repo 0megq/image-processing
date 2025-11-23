@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import tkinter as tk
-import threading, time
+import threading, time, queue
 from typing import List
 from pathlib import Path
 
@@ -10,18 +10,34 @@ scale_factor = 1/4
 originalName = "original"
 outlineName = "outline"
 next_event = threading.Event()
+update_event = threading.Event()
+exit_event = threading.Event()
+
+msg_q = queue.Queue()
 
 
-def wait_until_tk_event(tk_event: threading.Event, poll_ms: int = 10):
+def wait_until_tk_event(tk_event: threading.Event, params, poll_ms: int = 10):
 	"""
 	Block until tk_event.is_set(), while keeping OpenCV windows responsive.
 	- tk_event: threading.Event that the Tk button will set().
 	- poll_ms: cv2.waitKey polling interval in milliseconds.
 	Returns when tk_event is set.
 	"""
+	global exit_event
 	while not tk_event.is_set():
 		# let OpenCV process window events (mouse callbacks, redraw)
 		cv2.waitKey(poll_ms)
+
+		if exit_event.is_set():
+			return
+		
+		if update_event.is_set():
+			update_display(params)
+			update_event.clear()
+		
+		msg_q.put_nowait(params)
+	
+
 		# tiny sleep to avoid busy loop (optional)
 		time.sleep(max(0.001, poll_ms / 1000.0))
 	# do not clear event here; caller may clear if they want to reuse
@@ -54,6 +70,17 @@ def update_display(param):
 		cv2.circle(param["orig"], point, 4, (0, 0, 255), -1)
 
 	# refresh both windows
+	if not is_window_open(outlineName):
+		cv2.namedWindow(outlineName,  cv2.WINDOW_AUTOSIZE)
+		cv2.setMouseCallback(outlineName, on_mouse, param)
+		
+		# create trackbars for canny thresholds
+		cv2.createTrackbar('threshold 1', outlineName, param["thresh1"], 500, lambda val: update_thresh1(val, param))
+		cv2.createTrackbar('threshold 2', outlineName, param["thresh2"], 500, lambda val: update_thresh2(val, param))
+	if not is_window_open(originalName):
+		cv2.namedWindow(originalName,  cv2.WINDOW_AUTOSIZE)
+		cv2.setMouseCallback(originalName, on_mouse, param)
+
 	cv2.imshow(outlineName, param["outl"])
 	cv2.imshow(originalName, param["orig"])
 
@@ -78,6 +105,13 @@ def update_edges(param):
 	
 	update_display(param)
 
+
+def is_window_open(name: str) -> bool:
+    try:
+        v = cv2.getWindowProperty(name, cv2.WND_PROP_VISIBLE)
+        return v > 0
+    except cv2.error:
+        return False
 
 # image analysis, window mouse callback
 def on_mouse(event, x, y, flags, param):
@@ -183,14 +217,14 @@ def analyze_segment(img) -> List:
 	cv2.setMouseCallback(originalName, on_mouse, callback_data)
 	
 	# create trackbars for canny thresholds
-	cv2.createTrackbar('Threshold 1', outlineName, canny_thr[0], 500, lambda val: update_thresh1(val, callback_data))
-	cv2.createTrackbar('Threshold 2', outlineName, canny_thr[1], 500, lambda val: update_thresh2(val, callback_data))
+	cv2.createTrackbar('threshold 1', outlineName, canny_thr[0], 500, lambda val: update_thresh1(val, callback_data))
+	cv2.createTrackbar('threshold 2', outlineName, canny_thr[1], 500, lambda val: update_thresh2(val, callback_data))
 
 	# Show the initial frames
 	cv2.imshow(outlineName,  disp_outl)
 	cv2.imshow(originalName,  disp_orig)
 
-	wait_until_tk_event(next_event)
+	wait_until_tk_event(next_event, callback_data)
 	cv2.destroyAllWindows()
 	
 	# collect the points
@@ -259,10 +293,29 @@ def run_cv():
 	df = pd.DataFrame(data)
 	df.to_csv('out.csv', index=False)
 
+
+
 cv_thread = threading.Thread(target=run_cv, daemon=True)
 cv_thread.start()
 root = tk.Tk()
 root.title("Controls")
-tk.Button(root, text="next", command=lambda : next_event.set()).pack()
+root.geometry("400x400")
+root.pack_propagate(True)
+tk.Label(root, text="Controls").pack(pady=10, padx=10)
+tk.Button(root, text="Reopen", command=lambda : update_event.set()).pack(padx=10, pady=5)
+tk.Button(root, text="Next", command=lambda : next_event.set()).pack(padx=10, pady=5)
+tk.Button(root, text="Quit", command=lambda : root.destroy()).pack(padx=10, pady=5)
+lbl = tk.Label(root, text="No data yet")
+lbl.pack()
+def poll():
+	try:
+		while True:                  # drain all available messages
+			info = msg_q.get_nowait()
+			lbl.config(text=info["points"])
+	except queue.Empty:
+		root.after(50, poll)
+
+root.after(50, poll)
 root.mainloop()
+exit_event.set()
 cv_thread.join()
