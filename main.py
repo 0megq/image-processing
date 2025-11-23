@@ -2,13 +2,30 @@ import cv2
 import numpy as np
 import pandas as pd
 import tkinter as tk
-from PIL import Image, ImageTk
+import threading, time
 from typing import List
 from pathlib import Path
 
 scale_factor = 1/4
 originalName = "original"
 outlineName = "outline"
+next_event = threading.Event()
+
+
+def wait_until_tk_event(tk_event: threading.Event, poll_ms: int = 10):
+	"""
+	Block until tk_event.is_set(), while keeping OpenCV windows responsive.
+	- tk_event: threading.Event that the Tk button will set().
+	- poll_ms: cv2.waitKey polling interval in milliseconds.
+	Returns when tk_event is set.
+	"""
+	while not tk_event.is_set():
+		# let OpenCV process window events (mouse callbacks, redraw)
+		cv2.waitKey(poll_ms)
+		# tiny sleep to avoid busy loop (optional)
+		time.sleep(max(0.001, poll_ms / 1000.0))
+	# do not clear event here; caller may clear if they want to reuse
+	tk_event.clear()
 
 # Calculating the nearest edge
 def nearest_edge(px, py, edge_img):
@@ -22,7 +39,6 @@ def nearest_edge(px, py, edge_img):
 
 def update_display(param):
 	global originalName, outlineName
-	print("update")
 	# draw a red filled circle on **both** mutable displays
 	param["orig"] = param["orig_fr"].copy()
 	# Redraw outline with new edges
@@ -68,7 +84,6 @@ def on_mouse(event, x, y, flags, param):
 	global originalName, outlineName
 	# try to place a new point
 	if event == cv2.EVENT_LBUTTONDOWN:
-		print("down")
 		param["lmb_down"] = True
 
 		# find closest point
@@ -86,7 +101,6 @@ def on_mouse(event, x, y, flags, param):
 		# is it close enough?
 		if min_d2 != -1 and min_d2 < 30 * 30:
 			param["selected_point"] = min_idx
-			print("YOOO!!")
 			# get closest point to mouse
 			nearest = nearest_edge(x, y, param["edges"])
 			if nearest is None:
@@ -119,7 +133,6 @@ def on_mouse(event, x, y, flags, param):
 		update_display(param)
 
 	elif event == cv2.EVENT_LBUTTONUP:
-		print("released")
 		param["selected_point"] = -1
 		param["lmb_down"] = False
 		update_display(param)
@@ -177,7 +190,7 @@ def analyze_segment(img) -> List:
 	cv2.imshow(outlineName,  disp_outl)
 	cv2.imshow(originalName,  disp_orig)
 
-	cv2.waitKey(0)
+	wait_until_tk_event(next_event)
 	cv2.destroyAllWindows()
 	
 	# collect the points
@@ -224,7 +237,7 @@ data = {
 	"x4": [],
 }
 
-def run():
+def run_cv():
 	path: Path = Path('./images')
 	files = [f for f in path.iterdir() if f.is_file()]
 	files = files[0:1]
@@ -246,3 +259,10 @@ def run():
 	df = pd.DataFrame(data)
 	df.to_csv('out.csv', index=False)
 
+cv_thread = threading.Thread(target=run_cv, daemon=True)
+cv_thread.start()
+root = tk.Tk()
+root.title("Controls")
+tk.Button(root, text="next", command=lambda : next_event.set()).pack()
+root.mainloop()
+cv_thread.join()
