@@ -1,4 +1,7 @@
 - [x] zoom in + pan
+- [ ] select directory/image to process on launch
+- [ ] mid-way save
+- [ ] view current image details
+- [ ] mid-way quit without opening all photos
 - [ ] properly focus mouse when zooming
-- [ ] mid-way save, select directory/image to process, view current image details
 - [x] current pixel value + snapped pixel value
