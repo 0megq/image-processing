@@ -1,4 +1,4 @@
-- zoom in + pan
-- pixel value + snapped pixel value
-- gaussian blur before Canny
-- edge detection at high res, scale down, and reapply edge detection
+- [x] zoom in + pan
+- [ ] properly focus mouse when zooming
+- [ ] mid-way save, select directory/image to process, view current image details
+- [x] current pixel value + snapped pixel value
