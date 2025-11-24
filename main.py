@@ -63,11 +63,18 @@ def update_display(param):
 	disp_outl[edge_y, edge_x] = (0, 255, 0)
 	param["outl"] = disp_outl
 
+	outl_overlay = param["outl"].copy()
+	orig_overlay = param["orig"].copy()
+
 	for point in param["points"]:
 		if point == (-1, -1):
 			continue
-		cv2.circle(param["outl"], point, 4, (0, 0, 255), -1)
-		cv2.circle(param["orig"], point, 4, (0, 0, 255), -1)
+
+		cv2.circle(outl_overlay, point, 4, (0, 0, 255), -1)
+		cv2.circle(orig_overlay, point, 4, (0, 0, 255), -1)
+	
+	param["outl"] = cv2.addWeighted(outl_overlay, 0.7, param["outl"], 0.3, 0)
+	param["orig"] = cv2.addWeighted(orig_overlay, 0.7, param["orig"], 0.3, 0)
 
 	# refresh both windows
 	if not is_window_open(outlineName):
