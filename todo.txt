@@ -1,6 +1,7 @@
 - [x] zoom in + pan
-- [ ] select directory/image to process on launch
-- [ ] mid-way save
+- [x] select directory/image to process on launch
+- [x] mid-way save (if user quits program runs through all selected files and saves blank data)
+- [ ] don't save empty entries
 - [ ] view current image details
 - [ ] mid-way quit without opening all photos
 - [ ] properly focus mouse when zooming

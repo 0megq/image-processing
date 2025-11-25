@@ -323,6 +323,14 @@ data = {
 	"x4": [],
 }
 
+def open_multiple_files():
+	root = tk.Tk()
+	root.withdraw()  # Hide the main window
+	file_paths = filedialog.askopenfilenames(title='Select Files')
+	root.destroy()
+	return file_paths
+files = open_multiple_files()
+
 def run_cv():
 	# print(files)
 
@@ -339,19 +347,11 @@ def run_cv():
 			for i, point in enumerate(points):
 				data["x" + str(i + 1)].append(point[0] / scale_factor)
 				data["y" + str(i + 1)].append(point[1] / scale_factor)
-		print("Added ", file_name)
 
 	df = pd.DataFrame(data)
 	df.to_csv('out.csv', index=False)
+	print("Data saved, ready to quit.")
 
-
-def open_multiple_files():
-	root = tk.Tk()
-	root.withdraw()  # Hide the main window
-	file_paths = filedialog.askopenfilenames(title='Select Files')
-	return file_paths
-
-files = open_multiple_files()
 
 
 cv_thread = threading.Thread(target=run_cv, daemon=True)
