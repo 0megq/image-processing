@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import tkinter as tk
 import threading, time, queue
+import os
+from tkinter import filedialog
 from typing import List
 from pathlib import Path
 
@@ -302,7 +304,7 @@ def analyze_image(file_path: str, file_name: str) -> List:
 	left_points = analyze_segment(left)
 	originalName = file_name + " Middle Tube"
 	middle_points = analyze_segment(middle)
-	originalName = file_name + " Middle Tube"
+	originalName = file_name + " Right Tube"
 	right_points = analyze_segment(right)
 	return [left_points, middle_points, right_points]
 
@@ -322,16 +324,14 @@ data = {
 }
 
 def run_cv():
-	path: Path = Path('./images')
-	files = [f for f in path.iterdir() if f.is_file()]
-	files = files[0:1]
 	# print(files)
 
 	for file in files:
-		image_points = analyze_image(str(file), file.name)
-		data["File Name"].append(file.name)
-		data["File Name"].append(file.name)
-		data["File Name"].append(file.name)
+		file_name = os.path.basename(file)
+		image_points = analyze_image(file, file_name)
+		data["File Name"].append(file_name)
+		data["File Name"].append(file_name)
+		data["File Name"].append(file_name)
 		data["Tube"].append("Left")
 		data["Tube"].append("Middle")
 		data["Tube"].append("Right")
@@ -339,10 +339,19 @@ def run_cv():
 			for i, point in enumerate(points):
 				data["x" + str(i + 1)].append(point[0] / scale_factor)
 				data["y" + str(i + 1)].append(point[1] / scale_factor)
+		print("Added ", file_name)
 
 	df = pd.DataFrame(data)
 	df.to_csv('out.csv', index=False)
 
+
+def open_multiple_files():
+	root = tk.Tk()
+	root.withdraw()  # Hide the main window
+	file_paths = filedialog.askopenfilenames(title='Select Files')
+	return file_paths
+
+files = open_multiple_files()
 
 
 cv_thread = threading.Thread(target=run_cv, daemon=True)
