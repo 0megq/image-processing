@@ -11,39 +11,6 @@ from pathlib import Path
 scale_factor = 1/4
 originalName = "original"
 outlineName = "outline"
-next_event = threading.Event()
-update_event = threading.Event()
-exit_event = threading.Event()
-
-msg_q = queue.Queue()
-
-
-def wait_until_tk_event(tk_event: threading.Event, params, poll_ms: int = 10):
-	"""
-	Block until tk_event.is_set(), while keeping OpenCV windows responsive.
-	- tk_event: threading.Event that the Tk button will set().
-	- poll_ms: cv2.waitKey polling interval in milliseconds.
-	Returns when tk_event is set.
-	"""
-	global exit_event
-	while not tk_event.is_set():
-		# let OpenCV process window events (mouse callbacks, redraw)
-		cv2.waitKey(poll_ms)
-
-		if exit_event.is_set():
-			return
-		
-		if update_event.is_set():
-			update_display(params)
-			update_event.clear()
-		
-		msg_q.put_nowait(params)
-	
-
-		# tiny sleep to avoid busy loop (optional)
-		time.sleep(max(0.001, poll_ms / 1000.0))
-	# do not clear event here; caller may clear if they want to reuse
-	tk_event.clear()
 
 # Calculating the nearest edge
 def nearest_edge(px, py, edge_img):
@@ -196,6 +163,7 @@ def on_mouse(event, px, py, flags, param):
 				return
 			point_idx = param["selected_point"]
 			param["points"][point_idx] = nearest
+			param["selected_point_pos"] = nearest
 			update_display(param)
 		elif param["pan_down"]:
 			width = param["orig_fr"].shape[1]
@@ -213,6 +181,8 @@ def on_mouse(event, px, py, flags, param):
 			# print((new_top_left[0] - old_top_left[0]) ** 2 + (new_top_left[1] - old_top_left[1]) ** 2)
 
 			update_display(param)
+		print("Mouse Pos (%d, %d)" % (param["mouse_pos"][0] / scale_factor, param["mouse_pos"][1] / scale_factor))
+		print("Selected Point Pos (%d, %d)" % (param["selected_point_pos"][0] / scale_factor, param["selected_point_pos"][1] / scale_factor))
 	elif event == cv2.EVENT_MOUSEWHEEL:
 		delta = flags >> 16
 		# max zoom of 2, min zoom of 1 (AKA no zoom)
@@ -265,6 +235,7 @@ def analyze_segment(img) -> List:
 		"points": [(-1, -1)] * 4,
 		"lmb_down": False,
 		"selected_point": -1,
+		"selected_point_pos": (0,0),
 		"mouse_pos": (0, 0),
 		"zoom": 1,
 		"top_left": (0, 0),
@@ -276,7 +247,13 @@ def analyze_segment(img) -> List:
 	update_display(callback_data)
 
 
-	wait_until_tk_event(next_event, callback_data)
+	while(1):
+		if (cv2.waitKey(0) == 13):
+			print("Going to next image")
+			break
+		update_display(callback_data)
+		print("Press Enter to go to Next")
+
 	cv2.destroyAllWindows()
 	
 	# collect the points
@@ -350,37 +327,39 @@ def run_cv():
 
 	df = pd.DataFrame(data)
 	df.to_csv('out.csv', index=False)
-	print("Data saved, ready to quit.")
+	print("Data saved, quitting")
 
 
 
-cv_thread = threading.Thread(target=run_cv, daemon=True)
-cv_thread.start()
-root = tk.Tk()
-root.title("Controls")
-root.geometry("200x400")
-root.pack_propagate(True)
-tk.Label(root, text="Controls").pack(pady=10, padx=10)
-tk.Button(root, text="Reopen", command=lambda : update_event.set()).pack(padx=10, pady=5)
-tk.Button(root, text="Next", command=lambda : next_event.set()).pack(padx=10, pady=5)
-mouse_pos_lbl = tk.Label(root, text="No data yet")
-mouse_pos_lbl.pack()
-selected_pos_lbl = tk.Label(root, text="No point selected")
-selected_pos_lbl.pack()
-tk.Button(root, text="Quit", command=lambda : root.destroy()).pack(padx=10, pady=5)
-def poll():
-	try:
-		while True:                  # drain all available messages
-			info = msg_q.get_nowait()
-			text = "Mouse Pos (%d, %d)" % (info["mouse_pos"][0] / scale_factor, info["mouse_pos"][1] / scale_factor)
-			mouse_pos_lbl.config(text=text)
-			if info["selected_point"] != -1:
-				text = "Selected Point Pos (%d, %d)" % (info["points"][info["selected_point"]][0] / scale_factor, info["points"][info["selected_point"]][1] / scale_factor)
-				selected_pos_lbl.config(text=text)
-	except queue.Empty:
-		root.after(50, poll)
+run_cv()
 
-root.after(50, poll)
-root.mainloop()
-exit_event.set()
-cv_thread.join()
+
+# cv_thread = threading.Thread(target=run_cv, daemon=True)
+# cv_thread.start()
+# root = tk.Tk()
+# root.title("Controls")
+# root.geometry("200x400")
+# root.pack_propagate(True)
+# tk.Label(root, text="Controls").pack(pady=10, padx=10)
+# tk.Button(root, text="Reopen", command=lambda : update_event.set()).pack(padx=10, pady=5)
+# mouse_pos_lbl = tk.Label(root, text="No data yet")
+# mouse_pos_lbl.pack()
+# selected_pos_lbl = tk.Label(root, text="No point selected")
+# selected_pos_lbl.pack()
+# tk.Button(root, text="Quit", command=lambda : root.destroy()).pack(padx=10, pady=5)
+# def poll():
+# 	try:
+# 		while True:                  # drain all available messages
+# 			info = msg_q.get_nowait()
+# 			text = "Mouse Pos (%d, %d)" % (info["mouse_pos"][0] / scale_factor, info["mouse_pos"][1] / scale_factor)
+# 			mouse_pos_lbl.config(text=text)
+# 			if info["selected_point"] != -1:
+# 				text = "Selected Point Pos (%d, %d)" % (info["points"][info["selected_point"]][0] / scale_factor, info["points"][info["selected_point"]][1] / scale_factor)
+# 				selected_pos_lbl.config(text=text)
+# 	except queue.Empty:
+# 		root.after(50, poll)
+
+# root.after(50, poll)
+# root.mainloop()
+# exit_event.set()
+# cv_thread.join()
